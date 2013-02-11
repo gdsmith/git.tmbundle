@@ -21,7 +21,7 @@ class SCM::Git::Stash < SCM::Git::CommandProxyBase
     base.parse_diff(base.command("stash", "show", "-p", name))
   end
   
-  def apply(name)
+  def apply(name, options = {})
     args = ["stash", "apply"]
     args << "--index" if options[:index]
     args << name

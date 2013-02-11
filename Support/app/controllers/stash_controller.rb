@@ -62,6 +62,49 @@ class StashController < ApplicationController
     render("/diff/_diff_results", :locals => {:diff_results => stash_diff})
   end
   
+  def apply
+    stash_item = select_stash(:prompt => "Select a stash to pop")
+    if stash_item.nil?
+      puts "Cancelled"
+      return
+    end
+    puts "<h2>Applying stash '#{stash_item[:description]}'</h2>"
+    flush
+    
+    stash_diff = git.stash.diff(stash_item[:name])
+    
+    stash_it = lambda {
+      git.stash.apply(stash_item[:name])
+    }
+
+    result = stash_it.call
+
+    if result.match(/Cannot restore on top of a dirty state/)
+      response = TextMate::UI.alert(:warning, "You're not on a clean working copy", "You may want to commit your outstanding changes before stashing.\nWould you like to apply your stash anyways? (could cause conflicts)", "No", "Yes")
+      if response == "Yes"
+        git.command("add", ".")
+        result = stash_it.call
+        git.command("reset")
+      else
+        return
+      end
+    end
+    
+    status_data = git.parse_status(result)
+    if status_data.empty?
+      puts "I didn't understand git's response.  Perhaps you can?"
+      puts "<pre>#{result}</pre>"
+      return
+    end
+    
+    puts "<h2>Successfully applied</h2>"
+    puts "<h2>Project Status:</h2>"
+    render "status/_status", :locals => {:status_data => status_data}
+    
+    puts "<h2>Diff of stash applied:</h2>"
+    render("/diff/_diff_results", :locals => {:diff_results => stash_diff})
+  end
+  
   def save
     untracked_files = git.list_files(git.path, :type => "o")
     if untracked_files.length >= 1
